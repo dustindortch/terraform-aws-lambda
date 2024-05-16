@@ -21,7 +21,12 @@ data "aws_iam_policy_document" "assume_role" {
   }
 }
 
+locals {
+  enable_vpc = var.vpc_config != null ? true : false
+}
+
 data "aws_iam_policy_document" "execution_policy" {
+  count = local.enable_vpc ? 1 : 0
   statement {
     effect = "Allow"
 
@@ -43,13 +48,17 @@ resource "aws_iam_role" "assume_role" {
 }
 
 resource "aws_iam_policy" "execution_policy" {
+  count = local.enable_vpc ? 1 : 0
+
   name   = "policy-lambda-${var.name}"
-  policy = data.aws_iam_policy_document.execution_policy.json
+  policy = data.aws_iam_policy_document.execution_policy[0].json
 }
 
 resource "aws_iam_role_policy_attachment" "execution_policy" {
+  count = local.enable_vpc ? 1 : 0
+
   role       = aws_iam_role.assume_role.name
-  policy_arn = aws_iam_policy.execution_policy.arn
+  policy_arn = aws_iam_policy.execution_policy[0].arn
 }
 
 locals {
@@ -90,10 +99,10 @@ locals {
     hash = local.archive_build && local.xor_sources ? data.archive_file.package[0].output_base64sha256 : (
       var.package_file != null ? base64sha256(var.package_file) : null
     )
-    type = local.archive_build || var.package_file != null ? "zip" : null
+    type = local.archive_build || var.package_file != null ? "Zip" : null
   }
   environment_variables = var.environment_variables != {} ? [1] : []
-  vpc_config            = var.vpc_config != {} ? [1] : []
+  vpc_config            = local.enable_vpc ? [1] : []
 }
 
 resource "aws_lambda_function" "lambda" {
